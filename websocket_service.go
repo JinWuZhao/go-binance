@@ -395,3 +395,48 @@ type WsMiniMarketsStatEvent struct {
 	BaseVolume  string `json:"v"`
 	QuoteVolume string `json:"q"`
 }
+
+type WsBookTickerHandler func(event *WsBookTickerEvent)
+
+func WsBookTickerServe(symbol string, handler WsBookTickerHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+	endpoint := fmt.Sprintf("%s/%s@bookTicker", baseURL, strings.ToLower(symbol))
+	cfg := newWsConfig(endpoint)
+	wsHandler := func(message []byte) {
+		var event WsBookTickerEvent
+		err := json.Unmarshal(message, &event)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+		handler(&event)
+	}
+	return wsServe(cfg, wsHandler, errHandler)
+}
+
+type WsBookTickerEvent struct {
+	UpdateId    int64  `json:"u"`
+	Symbol      string `json:"s"`
+	BidPrice    string `json:"b"`
+	BidQuantity string `json:"B"`
+	AskPrice    string `json:"a"`
+	AskQuantity string `json:"A"`
+}
+
+type WsAllBookTickerServeHandler func(event WsBookTickerEvent)
+
+func WsAllBookTickerServe(handler WsAllBookTickerServeHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+	endpoint := fmt.Sprintf("%s/!bookTicker", baseURL)
+	cfg := newWsConfig(endpoint)
+	wsHandler := func(message []byte) {
+		var event WsBookTickerEvent
+		err := json.Unmarshal(message, &event)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+		handler(event)
+	}
+	return wsServe(cfg, wsHandler, errHandler)
+}
+
+type WsAllBookTickerEvent []*WsBookTickerEvent
