@@ -422,21 +422,18 @@ type WsBookTickerEvent struct {
 	AskQuantity string `json:"A"`
 }
 
-type WsAllBookTickerServeHandler func(event WsAllBookTickerEvent)
-
-func WsAllBookTickerServe(handler WsAllBookTickerServeHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+func WsAllBookTickerServe(handler WsBookTickerHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
 	endpoint := fmt.Sprintf("%s/!bookTicker", baseURL)
 	cfg := newWsConfig(endpoint)
 	wsHandler := func(message []byte) {
-		var event WsAllBookTickerEvent
+		var event WsBookTickerEvent
 		err := json.Unmarshal(message, &event)
 		if err != nil {
+			fmt.Println(string(message))
 			errHandler(err)
 			return
 		}
-		handler(event)
+		handler(&event)
 	}
 	return wsServe(cfg, wsHandler, errHandler)
 }
-
-type WsAllBookTickerEvent []*WsBookTickerEvent
