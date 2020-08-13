@@ -14,8 +14,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/adshao/go-binance/common"
-	"github.com/adshao/go-binance/futures"
+	"github.com/JinWuZhao/go-binance/common"
+	"github.com/JinWuZhao/go-binance/futures"
 	"github.com/bitly/go-simplejson"
 )
 
