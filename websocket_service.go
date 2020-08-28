@@ -276,11 +276,147 @@ type WsTradeEvent struct {
 	Placeholder   bool   `json:"M"` // add this field to avoid case insensitive unmarshaling
 }
 
+type WsUserDataHandler func(event *WsUserDataEvent)
+
 // WsUserDataServe serve user data handler with listen key
-func WsUserDataServe(listenKey string, handler WsHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+func WsUserDataServe(listenKey string, handler WsUserDataHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
 	endpoint := fmt.Sprintf("%s/%s", baseURL, listenKey)
 	cfg := newWsConfig(endpoint)
-	return wsServe(cfg, handler, errHandler)
+	wsHandler := func(message []byte) {
+		event := new(WsUserDataEvent)
+		err := json.Unmarshal(message, event)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+		var data interface{}
+		switch event.Event {
+		case UserDataEventOutboundAccountInfo:
+			data = new(WsUserDataOutBoundAccountInfo)
+		case UserDataEventOutboundAccountPosition:
+			data = new(WsUserDataOutBoundAccountPosition)
+		case UserDataEventBalanceUpdate:
+			data = new(WsUserDataBalanceUpdate)
+		case UserDataEventExecutionReport:
+			data = new(WsUserDataExecutionReport)
+		case UserDataEventListStatus:
+			data = new(WsUserDataListStatus)
+		default:
+			errHandler(fmt.Errorf("unknown event type %s", event.Event))
+		}
+		err = json.Unmarshal(message, data)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+		event.Payload = data
+		handler(event)
+	}
+	return wsServe(cfg, wsHandler, errHandler)
+}
+
+const (
+	UserDataEventOutboundAccountInfo     = "outboundAccountInfo"
+	UserDataEventOutboundAccountPosition = "outboundAccountPosition"
+	UserDataEventBalanceUpdate           = "balanceUpdate"
+	UserDataEventExecutionReport         = "executionReport"
+	UserDataEventListStatus              = "listStatus"
+)
+
+type WsUserDataEvent struct {
+	Event   string      `json:"e"`
+	Time    int64       `json:"E"`
+	Payload interface{} `json:"-"`
+}
+
+type WsUserDataBalance struct {
+	Asset        string `json:"a"`
+	FreeAmount   string `json:"f"`
+	LockedAmount string `json:"l"`
+}
+
+type WsUserDataOutBoundAccountInfo struct {
+	MakerCommissionRate int64               `json:"m"`
+	TakerCommissionRate int64               `json:"t"`
+	BuyerCommissionRate int64               `json:"b"`
+	SellerCommisionRate int64               `json:"s"`
+	CanTrade            bool                `json:"T"`
+	CanWithDraw         bool                `json:"W"`
+	CanDeposit          bool                `json:"D"`
+	LasetUpdateTime     int64               `json:"u"`
+	Balances            []WsUserDataBalance `json:"B"`
+	Permissions         []string            `json:"P"`
+}
+
+type WsUserDataOutBoundAccountPosition struct {
+	LasetUpdateTime int64               `json:"u"`
+	Balances        []WsUserDataBalance `json:"B"`
+}
+
+type WsUserDataBalanceUpdate struct {
+	Asset        string `json:"a"`
+	BalanceDelta string `json:"d"`
+	ClearTime    int64  `json:"T"`
+}
+
+const (
+	WsUserDataExecutionTypeNEW      = "NEW"
+	WsUserDataExecutionTypeCANCELED = "CANCELED"
+	WsUserDataExecutionTypeREPLACED = "REPLACED"
+	WsUserDataExecutionTypeREJECTED = "REJECTED"
+	WsUserDataExecutionTypeTRADE    = "TRADE"
+	WsUserDataExecutionTypeEXPIRED  = "EXPIRED"
+)
+
+type WsUserDataExecutionReport struct {
+	Symbol                                 string  `json:"s"`
+	ClientOrderID                          string  `json:"c"`
+	Side                                   string  `json:"S"`
+	OrderType                              string  `json:"o"`
+	TimeInForce                            string  `json:"f"`
+	OrderQuantity                          string  `json:"q"`
+	OrderPrice                             string  `json:"p"`
+	StopPrice                              string  `json:"P"`
+	IcebergQuantity                        string  `json:"F"`
+	OrderListID                            int64   `json:"g"`
+	OriginalOrderID                        *string `json:"C"`
+	CurrentExecutionType                   string  `json:"x"`
+	CurrentOrderStatus                     string  `json:"X"`
+	OrderRejectReason                      string  `json:"r"`
+	OrderID                                int64   `json:"i"`
+	LastExecutedQuantity                   string  `json:"l"`
+	CumulativeFilledQuantity               string  `json:"z"`
+	LastExecutedPrice                      string  `json:"L"`
+	CommissionAmount                       string  `json:"n"`
+	CommissionAsset                        *string `json:"N"`
+	TransactionTime                        int64   `json:"T"`
+	TradeID                                int64   `json:"t"`
+	Ignore                                 int64   `json:"I"`
+	IsOrderOnBook                          bool    `json:"w"`
+	IsTradeMakerSide                       bool    `json:"m"`
+	Ignore2                                string  `json:"M"`
+	OrderCreationTime                      int64   `json:"O"`
+	CumulativeQuoteAssetTransactedQuantity string  `json:"Z"`
+	LastQuoteAssetTransactedQuantity       string  `json:"Y"`
+	QuoteOrderQuantity                     string  `json:"Q"`
+}
+
+type WsUserDataListStatusObject struct {
+	Symbol        string `json:"s"`
+	OrderId       int64  `json:"i"`
+	ClientOrderID string `json:"c"`
+}
+
+type WsUserDataListStatus struct {
+	Symbol            string                       `json:"s"`
+	OrderListID       int64                        `json:"g"`
+	ContingencyType   string                       `json:"c"`
+	ListStatusType    string                       `json:"l"`
+	ListOrderStatus   string                       `json:"L"`
+	ListRejectReason  string                       `json:"r"`
+	ListClientOrderID string                       `json:"C"`
+	TransactionTime   int64                        `json:"T"`
+	Objects           []WsUserDataListStatusObject `json:"O"`
 }
 
 // WsFutureUserDataServe serve user data handler with listen key
